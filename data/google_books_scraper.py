@@ -62,9 +62,10 @@ def isbns_from_file(filename):
         xml = record.get("raw_xml")
         isbn = extract_primary_isbn(xml) if xml else None
 
-        results.append({
-            "isbn": isbn
-        })
+        if isbn is not None:
+            results.append({
+                "isbn": isbn
+            })
 
     return results
 
