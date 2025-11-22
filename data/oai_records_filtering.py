@@ -4,6 +4,7 @@ import glob
 import re
 import random
 import csv
+import pandas as pd
 from tqdm import tqdm
 import xml.etree.ElementTree as ET
 
@@ -35,13 +36,17 @@ def is_valid_record(json_line):
         if not raw_xml: return None
         root = ET.fromstring(raw_xml)
 
-        # --- 1. Mandatory Core Fields (Must exist) ---
+        # --- 1. Mandatory Core Fields ---
 
         isbn = extract_text(root, '020', 'a')
         if not isbn: return None
+        # [REMOVED] isbn = str(isbn).replace("-", "")  <-- Keeping hyphens now
 
         summary_text = extract_text(root, '520', 'a')
         if not summary_text or not summary_text.strip(): return None
+
+        # Clean newlines to keep CSV rows intact
+        summary_text = summary_text.replace("\n", " ").replace("\r", " ").strip()
 
         pages_str = extract_text(root, '300', 'a')
         if not pages_str: return None
@@ -66,10 +71,11 @@ def is_valid_record(json_line):
         if not lang or lang == "|||": lang = extract_text(root, '041', 'a')
         if not lang: return None
 
-        # --- 2. Mandatory Metadata (Title, Author, Pub, Genre) ---
+        # --- 2. Mandatory Metadata ---
 
         title = extract_text(root, '245', 'a')
         if not title: return None
+        title = title.replace("\n", " ").strip()
 
         author = extract_text(root, '100', 'a')
         if not author: return None
@@ -82,7 +88,7 @@ def is_valid_record(json_line):
                        if g.find("ns1:subfield[@code='a']", NAMESPACES) is not None]
         if not genres_list: return None
 
-        # --- 3. Optional Metadata (Subjects) ---
+        # --- 3. Optional Metadata ---
 
         subjects_list = [s.find("ns1:subfield[@code='a']", NAMESPACES).text
                          for s in root.findall(".//ns1:datafield[@tag='650']", NAMESPACES)
@@ -104,70 +110,69 @@ def is_valid_record(json_line):
         return None
 
 
-def process_directory(input_dir, output_csv, n_final_count):
+def process_directory(input_dir, output_csv):
     files = glob.glob(os.path.join(input_dir, "*.jsonl"))
     if not files:
         print("No files found.")
         return
 
-    records_with_subjects = []
-    records_without_subjects = []
+    all_records = []
 
-    print("Step 1: Scanning files and categorizing valid records...")
+    print("Step 1: Scanning files and extracting valid records...")
     for file_path in tqdm(files, desc="Reading Files", unit="file"):
         with open(file_path, 'r', encoding='utf-8') as in_f:
             for line in in_f:
                 if line.strip():
                     record = is_valid_record(line)
                     if record:
-                        if record['subjects']:
-                            records_with_subjects.append(record)
-                        else:
-                            records_without_subjects.append(record)
+                        all_records.append(record)
 
-    total_with = len(records_with_subjects)
-    total_without = len(records_without_subjects)
+    print(f"\nFound {len(all_records)} total valid records (before deduplication).")
 
-    print("-" * 40)
-    print(f"STATS:")
-    print(f"  [PERFECT RECORDS] All columns filled: {total_with}")
-    print(f"  [PARTIAL RECORDS] Missing subjects:   {total_without}")
-    print(f"  [TOTAL VALID]     Combined count:     {total_with + total_without}")
-    print("-" * 40)
+    if not all_records:
+        return
 
-    print("Step 2: Shuffling...")
-    random.shuffle(records_with_subjects)
-    random.shuffle(records_without_subjects)
+    # Write raw CSV
+    print(f"Step 2: Writing raw records to {output_csv}...")
+    fieldnames = all_records[0].keys()
+    with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+        writer.writeheader()
+        writer.writerows(all_records)
 
-    # Step 3: Fill quota
-    final_selection = []
-    final_selection.extend(records_with_subjects[:n_final_count])
-    missing_count = n_final_count - len(final_selection)
+    print("Done writing raw file.")
 
-    if missing_count > 0:
-        fallback_records = records_without_subjects[:missing_count]
-        final_selection.extend(fallback_records)
-        if len(fallback_records) > 0:
-            print(f"\nWARNING: We didn't populate 'subjects' for {len(fallback_records)} records to meet the target.")
-    else:
-        print(f"\nSuccess: All {n_final_count} selected records have subjects populated.")
+    print("\nStep 3: Starting deduplication (preferring most recent year)...")
+    deduplicate_books(output_csv, output_csv)
 
-    print(f"Step 4: Writing CSV to {output_csv}...")
-    if final_selection:
-        fieldnames = final_selection[0].keys()
-        with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(final_selection)
-    print("Done.")
+
+def deduplicate_books(input_path, output_path):
+    try:
+        df = pd.read_csv(input_path, dtype={'isbn': str})
+        original_count = len(df)
+        df['year'] = pd.to_numeric(df['year'], errors='coerce')
+
+        df_sorted = df.sort_values(by=['isbn', 'year'], ascending=[True, False])
+        df_deduped = df_sorted.drop_duplicates(subset=['isbn'], keep='first')
+
+        final_count = len(df_deduped)
+        print(f"  Original records: {original_count:,}")
+        print(f"  Unique records:   {final_count:,}")
+        print(f"  Removed records:  {original_count - final_count:,}")
+
+        print(f"  Overwriting {output_path}...")
+        df_deduped.to_csv(output_path, index=False, quoting=csv.QUOTE_ALL)
+        print("  Deduplication complete.")
+
+    except Exception as e:
+        print(f"An error occurred during deduplication: {e}")
 
 
 if __name__ == "__main__":
     INPUT_DIRECTORY = "./"
     OUTPUT_FILENAME = "filtered_books_dataset.csv"
-    N_FINAL_COUNT = 3313 # this number is the number of complete records (excluding subject)
 
     if os.path.exists(INPUT_DIRECTORY):
-        process_directory(INPUT_DIRECTORY, OUTPUT_FILENAME, N_FINAL_COUNT)
+        process_directory(INPUT_DIRECTORY, OUTPUT_FILENAME)
     else:
         print(f"Error: Directory '{INPUT_DIRECTORY}' does not exist.")
