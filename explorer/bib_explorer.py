@@ -122,14 +122,17 @@ class BibExplorer:
         if sql:
             # SQL case
             sql_books = self.database.execute_query(sql)
+            query_type = "sql"
         if sim:
             # Similarity search case
             search_query = self.embed_query(sim)
             isbns = self.vector_index.search(search_query)
             sim_books = self.database.get_books(isbns)
+            query_type = "sim"
         if sql and sim:
             books = [s for s in sql_books if s in sim_books]
+            query_type = "sqlsim"
         else:
             books = sql_books or sim_books
-        return books
+        return books, query_type
 
