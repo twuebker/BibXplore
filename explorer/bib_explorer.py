@@ -55,7 +55,6 @@ class BibExplorer:
         self.vector_index.build_index(isbns, vectors)
 
         self.database = Database("books.db")
-        print("Creating db")
         self.database.populate_from_csv(csv, "books")
 
     def prompt_model(self, query) -> str:

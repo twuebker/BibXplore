@@ -58,7 +58,6 @@ with st.sidebar:
         else:
             with st.spinner("Initializing explorer..."):
                 try:
-                    print("Initializing BibExplorer...")
                     st.session_state.explorer = BibExplorer(api_key=api_key)
                     st.session_state.explorer.init_explorer(
                         csv=csv_path,
