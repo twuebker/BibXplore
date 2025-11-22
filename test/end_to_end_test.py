@@ -50,7 +50,16 @@ class TestExplorerEndToEnd(unittest.TestCase):
         """
         # Run query
         results = self.explorer.query_books("I want books about dragons")
-        self.assertEqual(len(results), 10)
+        self.assertEqual(10, len(results))
+
+    def test_both(self):
+        """
+        Test that a prompt requiring semantic search is handled with embedding + vector search.
+        """
+        # Run query
+        results = self.explorer.query_books("I want books about dragons with less than 200 pages")
+        self.assertEqual(9, len(results))
+
 
 
 if __name__ == "__main__":

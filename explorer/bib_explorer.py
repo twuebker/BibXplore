@@ -1,11 +1,12 @@
-import os
+import re
 
+import numpy as np
+import pyarrow.parquet as pq
 from google.genai import Client, types
 
 from explorer.database import Database
 from explorer.similarity_search import VectorIndex
-import pyarrow.parquet as pq
-import numpy as np
+
 
 class BibExplorer:
     def __init__(self, api_key, embedding_dim=768):
@@ -15,10 +16,13 @@ class BibExplorer:
         self.embedding_dim = embedding_dim
 
         self.base_context = """
-        You are a query expert. Your job is to decide whether a query requires a text2sql query or semantic search.
-        If you come to the conclusion that answering the query requires text2sql, provide the SQL. Otherwise, answer with exactly "NO SQL."
+        You are a query expert. Your job is to decide whether a query requires a text2sql query, a semantic search, or both.
+        If you think only SQL is needed, your answer should include only the identifiers <SQL>...</SQL> with the query in between. 
+        If you think only Similarity Search is needed, your answer should include only <SIM>...</SIM> with the entire user input in between. 
+        If you think we need both, then please provide <SQL>...</SQL> with the SQL query in between the identifiers, AND <SIM>...</SIM> 
+        with the exact part of the user input that should be executed via similarity search.
 
-        Database schema (the only table):
+        Database schema (the only table) in a SQLite3 DB:
         TABLE books (
             isbn INTEGER,
             title TEXT, 
@@ -32,16 +36,19 @@ class BibExplorer:
        )
 
         Rules:
-        - The user will query for a book.
+        - The user will query for books.
         - Only apply filters; never invent fields.
         - Never change, update, delete.
-        - Respond with SQL or the fact that similarity search is needed, which you will express with "NO SQL.". No explanation.
-        - All SQL has to be of the form "SELECT * FROM books WHERE [your filter]
+        - Respond with SQL, the fact that similarity search is needed, which you will express with the identifiers <SIM></SIM>, or both. Omit explanation.
+        - All SQL has to be of the form "SELECT * FROM books WHERE [your filter]"
+        - Use SQL when you can solve the query using the available fields. Use Similarity search when you can not. Use both if you need both.
         
         Examples:
-        When the user says 'I want books of 200 pages or shorter', then you answer with 'SELECT * FROM books WHERE pages <= 200'
-        When the user says 'I want books about dragons, then you answer 'NO SQL' because clearly you can not answer this using SQL,
+        When the user says 'I want books of 200 pages or shorter', then you answer with '<SQL>SELECT * FROM books WHERE pages <= 200</SQL>'
+        When the user says 'I want books about dragons', then you answer '<SIM></SIM>' because clearly you can not answer this using SQL,
         we need the similarity search instead.
+        When the user says 'I want books about dragons by astrid lindgren' then you answer '<SQL>SELECT * FROM books WHERE author IS 'Lindgren, Astrid'</SQL><SIM>I want books about dragons</SIM>' 
+        so that both is run.
     """
 
     def init_explorer(self, csv, embedding_path="../data/embeddings_data_parquet"):
@@ -67,8 +74,33 @@ class BibExplorer:
         )
         return response.text
 
-    def parse_sql_response(self, response):
-        return response
+    def extract_sim(self, text: str):
+        return self._extract(text, open_tag="<SIM>", close_tag="</SIM>")
+
+    def extract_sql(self, text: str):
+        return self._extract(text, open_tag="<SQL>", close_tag="</SQL>")
+
+    def _extract(self, text: str, open_tag: str, close_tag: str):
+        has_open = open_tag in text
+        has_close = close_tag in text
+
+        if has_open != has_close:
+            raise ValueError("Mismatched SQL markers: both <SQL> and </SQL> are required.")
+
+        if not has_open:
+            return None
+
+        m = re.search(fr"{open_tag}(.*?){close_tag}", text, flags=re.DOTALL)
+        if not m:
+            raise ValueError("Could not extract SQL content.")
+
+        return m.group(1).strip()
+
+    def parse_response(self, response):
+        sql = self.extract_sql(response)
+        sim = self.extract_sim(response)
+
+        return sql, sim
 
     def embed_query(self, query):
         embedded_query = self.client.models.embed_content(
@@ -84,14 +116,20 @@ class BibExplorer:
 
     def query_books(self, query):
         resp = self.prompt_model(query)
-        if "SELECT" in resp:
+        sql, sim = self.parse_response(resp)
+        sql_books = []
+        sim_books = []
+        if sql:
             # SQL case
-            sql_query = self.parse_sql_response(resp)
-            books = self.database.execute_query(sql_query)
-        else:
+            sql_books = self.database.execute_query(sql)
+        if sim:
             # Similarity search case
-            search_query = self.embed_query(query)
+            search_query = self.embed_query(sim)
             isbns = self.vector_index.search(search_query)
-            books = self.database.get_books(isbns)
+            sim_books = self.database.get_books(isbns)
+        if sql and sim:
+            books = [s for s in sql_books if s in sim_books]
+        else:
+            books = sql_books or sim_books
         return books
 
