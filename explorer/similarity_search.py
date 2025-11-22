@@ -9,15 +9,16 @@ class VectorIndex:
         self.lookup_table = None
 
     def build_index(self, isbns, data):
-        dim = data.shape[1]
+        dim = len(data[0])
         num_isbns = len(isbns)
         self.index = hnswlib.Index(space='cosine', dim=dim)
         self.index.init_index(max_elements=len(data), M=self.M, ef_construction=self.ef_construction)
+        self.index.add_items(data)
         self.lookup_table = {i:isbns[i] for i in range(num_isbns)}
 
     def search(self, query, k=10):
         self.index.set_ef(self.ef_search)
-        d, n = self.index.knn_query([query], k=k)
+        n, d = self.index.knn_query([query], k=k)
         isbn_list = [self.lookup_table[i] for i in n[0]]
         return isbn_list
 

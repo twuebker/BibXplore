@@ -1,11 +1,11 @@
 from google.genai import Client, types
 
-from database import Database
-from similarity_search import VectorIndex
+from explorer.database import Database
+from explorer.similarity_search import VectorIndex
 import pyarrow.parquet as pq
 import numpy as np
 
-class Explorer:
+class BibExplorer:
     def __init__(self, api_key, embedding_dim=768):
         self.vector_index = None
         self.database = None
@@ -42,7 +42,7 @@ class Explorer:
         we need the similarity search instead.
     """
 
-    def init_explorer(self, csv, embedding_path="/data/embeddings_data_parquet"):
+    def init_explorer(self, csv, embedding_path="../data/embeddings_data_parquet"):
         table = pq.read_table(embedding_path)
         isbns = table.column('isbn').to_pylist()
 
@@ -57,7 +57,7 @@ class Explorer:
 
     def prompt_model(self, query) -> str:
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
                 system_instruction=self.base_context
             ),
@@ -77,7 +77,7 @@ class Explorer:
                 output_dimensionality=self.embedding_dim
             )
         )
-
+        embedded_query = np.array(embedded_query.embeddings[0].values, np.float32)
         return embedded_query
 
     def query_books(self, query):
