@@ -1,3 +1,5 @@
+import os
+
 from google.genai import Client, types
 
 from explorer.database import Database
