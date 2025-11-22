@@ -48,5 +48,10 @@ class Database:
             results = cur.fetchall()
             return results
 
-    def get_books(self, isbns):
 
+    def get_books(self, isbns):
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            placeholders = ",".join("?" * len(isbns))
+            cur.execute(f"SELECT * FROM books WHERE isbn IN ({placeholders})", isbns)
+            return cur.fetchall()

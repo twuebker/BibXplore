@@ -5,10 +5,11 @@ from similarity_search import VectorIndex
 
 
 class Explorer:
-    def __init__(self, api_key):
+    def __init__(self, api_key, embedding_dim=768):
         self.vector_index = None
         self.database = None
         self.client = Client(api_key=api_key)
+        self.embedding_dim = embedding_dim
 
         self.base_context = """
         You are a query expert. Your job is to decide whether a query requires a text2sql query or semantic search.
@@ -17,23 +18,32 @@ class Explorer:
         Database schema (the only table):
         TABLE books (
             isbn INTEGER,
-            summary TEXT,
-            product TEXT,
-            quantity INTEGER,
-            price FLOAT,
-            order_date DATE
-        )
+            title TEXT, 
+            author TEXT,
+            pages INTEGER,
+            year INTEGER,
+            language TEXT,
+            publisher TEXT,
+            subjects TEXT,
+            genres TEXT
+       )
 
         Rules:
         - The user will query for a book.
         - Only apply filters; never invent fields.
         - Never change, update, delete.
         - Respond with SQL or the fact that similarity search is needed, which you will express with "NO SQL.". No explanation.
+        - All SQL has to be of the form "SELECT * FROM books WHERE [your filter]
+        
+        Examples:
+        When the user says 'I want books of 200 pages or shorter', then you answer with 'SELECT * FROM books WHERE pages <= 200'
+        When the user says 'I want books about dragons, then you answer 'NO SQL' because clearly you can not answer this using SQL,
+        we need the similarity search instead.
     """
 
-    def init_explorer(self, vectors, csv):
+    def init_explorer(self, isbns, vectors, csv):
         self.vector_index = VectorIndex()
-        self.vector_index.build_index(vectors)
+        self.vector_index.build_index(isbns, vectors)
 
         self.database = Database("books.db")
         self.database.populate_from_csv(csv, "books")
@@ -52,8 +62,16 @@ class Explorer:
         return response
 
     def embed_query(self, query):
-        # TODO
-        return ""
+        embedded_query = self.client.models.embed_content(
+            model="gemini-embedding-001",
+            contents=[query],
+            config=types.EmbedContentConfig(
+                task_type="RETRIEVAL_QUERY",
+                output_dimensionality=self.embedding_dim
+            )
+        )
+
+        return embedded_query
 
     def query_books(self, query):
         resp = self.prompt_model(query)
@@ -66,5 +84,5 @@ class Explorer:
             search_query = self.embed_query(query)
             isbns = self.vector_index.search(search_query)
             books = self.database.get_books(isbns)
-        return resp
+        return books
 
