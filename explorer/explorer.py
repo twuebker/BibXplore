@@ -2,7 +2,8 @@ from google.genai import Client, types
 
 from database import Database
 from similarity_search import VectorIndex
-
+import pyarrow.parquet as pq
+import numpy as np
 
 class Explorer:
     def __init__(self, api_key, embedding_dim=768):
@@ -41,7 +42,13 @@ class Explorer:
         we need the similarity search instead.
     """
 
-    def init_explorer(self, isbns, vectors, csv):
+    def init_explorer(self, csv, embedding_path="/data/embeddings_data_parquet"):
+        table = pq.read_table(embedding_path)
+        isbns = table.column('isbn').to_pylist()
+
+        raw_vectors = table.column('embedding').to_pylist()
+        vectors = [np.array(v, dtype=np.float32) for v in raw_vectors]
+
         self.vector_index = VectorIndex()
         self.vector_index.build_index(isbns, vectors)
 
