@@ -6,7 +6,8 @@ from typing import List, Tuple, Any
 class Database:
     def __init__(self, db_path: str):
         """Initialize with the path to the SQLite database file."""
-        os.unlink(db_path)
+        if os.path.exists(db_path):
+            os.remove(db_path)
         self.db_path = db_path
         self.columns = {
             "isbn": "TEXT PRIMARY KEY",
