@@ -57,6 +57,7 @@ if 'search_query' not in st.session_state:
 def initialize_app():
     """Initialize the BibExplorer automatically in the backend."""
     api_key = os.getenv("GEMINI_API_KEY", "")
+    # Default paths - ensure these exist in your deployment environment
     csv_path = "data/filtered_books_dataset.csv"
     embedding_path = "data/embeddings_data_parquet"
 
@@ -115,7 +116,6 @@ else:
     st.subheader("🔍 Search Books")
 
     # Text input bound to session state
-    # Note: We access the value via st.session_state.search_query automatically due to the key
     query = st.text_input(
         "Enter your query",
         placeholder="e.g., 'Books about artificial intelligence' or 'Books with less than 300 pages'",
@@ -177,12 +177,17 @@ else:
             col_header, col_sort_field, col_sort_order = st.columns([4, 2, 2])
 
             with col_header:
-                if current_query_type == "semantic":
-                    st.subheader(f"Top {total_results} most relevant results (Semantic Search)")
+                # Using markdown to create a new line after the colon
+                if current_query_type == "sim": # Assuming "sim" is the code for semantic search
+                   st.markdown(f"### Similarity Search\nTop {total_results} results (most relevant from top to bottom)")
+                elif current_query_type == "semantic": # Handling previous code "semantic" just in case
+                   st.markdown(f"### Similarity Search\nTop {total_results} results (most relevant from top to bottom)")
                 elif current_query_type == "sql":
-                    st.subheader(f"All {total_results} results found (SQL Query)")
+                    st.markdown(f"### SQL Search:\nAll {total_results} results found")
+                elif current_query_type == "sqlsim":
+                    st.markdown(f"### Similarity and SQL Search\nTop {total_results} results (most relevant from top to bottom)")
                 else:
-                    st.subheader(f"Results ({total_results} books found)")
+                    st.markdown(f"### Results:\n({total_results} books shown)")
 
             with col_sort_field:
                 sort_col = st.selectbox("Sort by", options=columns,
