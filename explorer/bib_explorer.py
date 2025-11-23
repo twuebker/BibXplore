@@ -119,6 +119,7 @@ class BibExplorer:
         sql, sim = self.parse_response(resp)
         sql_books = []
         sim_books = []
+        query_type = None
         if sql:
             # SQL case
             sql_books = self.database.execute_query(sql)

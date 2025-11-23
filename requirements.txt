@@ -6,7 +6,10 @@ python-dotenv~=1.2.1
 google-genai
 numpy~=2.3.5
 scikit-learn~=1.7.2
-pyarrow
+pyarrow~=21.0.0
 fastparquet
-pandas
-streamlit
+pandas~=2.3.3
+streamlit~=1.51.0
+protobuf~=6.33.1
+Flask~=3.1.2
+flask-cors~=6.0.1

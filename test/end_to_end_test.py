@@ -37,9 +37,9 @@ class TestExplorerEndToEnd(unittest.TestCase):
         Test that a prompt requiring SQL is executed using the database.
         """
         # Run query
-        results = self.explorer.query_books("I want a short book, preferably less than 200 pages")
+        books, _ = self.explorer.query_books("I want a short book, preferably less than 200 pages")
 
-        self.assertLess(results[0][3], 200)
+        self.assertLess(books[0][3], 200)
 
     # -----------------------------
     # TEST 2: SIMILARITY SEARCH PATH
@@ -49,16 +49,16 @@ class TestExplorerEndToEnd(unittest.TestCase):
         Test that a prompt requiring semantic search is handled with embedding + vector search.
         """
         # Run query
-        results = self.explorer.query_books("I want books about dragons")
-        self.assertEqual(10, len(results))
+        books, _ = self.explorer.query_books("I want books about dragons")
+        self.assertEqual(10, len(books))
 
     def test_both(self):
         """
         Test that a prompt requiring semantic search is handled with embedding + vector search.
         """
         # Run query
-        results = self.explorer.query_books("I want books about dragons with less than 200 pages")
-        self.assertEqual(9, len(results))
+        books, _ = self.explorer.query_books("I want books about dragons with less than 200 pages")
+        self.assertEqual(9, len(books))
 
 
 
