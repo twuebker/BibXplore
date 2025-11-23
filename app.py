@@ -4,7 +4,7 @@ import os
 
 from flask_cors import CORS
 
-from explorer.bib_explorer import BibExplorer  # Replace 'your_module_name' with actual filename
+from backend.bib_explorer import BibExplorer  # Replace 'your_module_name' with actual filename
 
 app = Flask(__name__)
 CORS(app)
@@ -61,7 +61,7 @@ def health():
     return jsonify({'status': 'healthy', 'explorer_initialized': explorer is not None})
 
 if __name__ == '__main__':
-    # Initialize the explorer before starting the server
+    # Initialize the backend before starting the server
     init_explorer()
 
     # Start the Flask app

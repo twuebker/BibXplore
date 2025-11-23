@@ -2,7 +2,7 @@ import unittest
 import os
 import tempfile
 import sqlite3
-from explorer.database import Database
+from backend.database import Database
 
 class TestDatabase(unittest.TestCase):
 

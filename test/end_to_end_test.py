@@ -3,7 +3,7 @@ import unittest
 
 from dotenv import load_dotenv
 
-from explorer.bib_explorer import BibExplorer
+from backend.bib_explorer import BibExplorer
 
 
 class TestExplorerEndToEnd(unittest.TestCase):

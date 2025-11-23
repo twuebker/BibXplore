@@ -4,8 +4,8 @@ import numpy as np
 import pyarrow.parquet as pq
 from google.genai import Client, types
 
-from explorer.database import Database
-from explorer.similarity_search import VectorIndex
+from backend.database import Database
+from backend.similarity_search import VectorIndex
 
 
 class BibExplorer:
